@@ -72,8 +72,8 @@ const getEpsilon = () => {
 let totalSteps = 0;
 
 const trainAll = async () => {
-    console.log('Training start..');
     const numEpisodes = process.env.episodes ?? 1000;
+    console.log(`Training start.. ${numEpisodes} episodes`);
     for (let episode = 0; episode < numEpisodes; episode++) {
         const totalReward = await updateReplayBufferAndTrain();
         totalSteps += replayBuffer.size();

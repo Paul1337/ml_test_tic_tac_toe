@@ -2,7 +2,6 @@ import tf from '@tensorflow/tfjs-node';
 import { getWinner, getAvailableActions, isBoardFull, printBoard } from './lib.js';
 import { promptUser } from './rl.js';
 import { cwd } from 'process';
-import path from 'path';
 
 // const boardSize = 3; // Размер игрового поля
 const numStates = 9; // Количество состояний в игровом поле (3x3)
@@ -208,7 +207,6 @@ const MODE = {
     LoadFromFile: 1,
 };
 const CurrentMode = MODE.LoadFromFile;
-console.log(cwd());
 const SAVE_PATH = `file://${cwd()}/model`;
 const LOAD_PATH = SAVE_PATH + '/model.json';
 

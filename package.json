@@ -5,8 +5,8 @@
     "type": "module",
     "main": "index.js",
     "scripts": {
-        "start": "node index",
-        "ttt": "node tic_tac_toe/index"
+        "start": "node src/index",
+        "train": "node src/index"
     },
     "keywords": [],
     "author": "",

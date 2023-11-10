@@ -5,8 +5,10 @@
     "type": "module",
     "main": "index.js",
     "scripts": {
-        "start": "node src/index",
-        "train": "node src/index"
+        "start": "node src/play/index",
+        "train": "node src/train/index",
+        "retrain": "npm run refresh && npm run train",
+        "refresh": "rimraf model"
     },
     "keywords": [],
     "author": "",
@@ -14,6 +16,7 @@
     "dependencies": {
         "@tensorflow/tfjs-node": "^4.11.0",
         "@tensorflow/tfjs-node-gpu": "^4.11.0",
+        "cross-env": "^7.0.3",
         "reinforce-js": "^1.5.1",
         "tensorflow-models": "^0.0.1"
     }

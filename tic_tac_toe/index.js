@@ -74,7 +74,7 @@ function selectAction(state, epsilon) {
         const qValues = model.predict(tf.tensor([state]));
         const probabilities = qValues.dataSync();
         const availableActions = getAvailableActions(state);
-        const filteredProbabilities = availableActions.map((action) => probabilities[action]);
+        const filteredProbabilities = availableActions.map(action => probabilities[action]);
         const actionIndex = filteredProbabilities.indexOf(Math.max(...filteredProbabilities));
         return availableActions[actionIndex];
     }
@@ -131,7 +131,7 @@ async function trainModel() {
     const states = [];
     const targets = [];
 
-    batch.forEach((sample) => {
+    batch.forEach(sample => {
         const { state, action, reward, nextState, done } = sample;
         const target = [...state];
         target[action] = reward + (done ? 0 : discountFactor * getMaxQValue(nextState));
@@ -147,7 +147,7 @@ async function trainModel() {
 function getMaxQValue(state) {
     const qValues = model.predict(tf.tensor([state])).dataSync();
     const availableActions = getAvailableActions(state);
-    const filteredQValues = availableActions.map((action) => qValues[action]);
+    const filteredQValues = availableActions.map(action => qValues[action]);
     return Math.max(...filteredQValues);
 }
 
@@ -207,9 +207,10 @@ const MODE = {
     Save: 0,
     LoadFromFile: 1,
 };
-const CurrentMode = MODE.Save;
+const CurrentMode = MODE.LoadFromFile;
 console.log(cwd());
 const SAVE_PATH = `file://${cwd()}/model`;
+const LOAD_PATH = SAVE_PATH + '/model.json';
 
 async function trainAll() {
     const numEpisodes = 2000;
@@ -223,9 +224,7 @@ async function trainAll() {
 }
 
 if (CurrentMode === MODE.Save) {
-    model = await tf.loadLayersModel(
-        'file:///Users/pavel/Projects/NodeJSApps/ml/tests/some/model/model.json'
-    );
+    model = await tf.loadLayersModel(LOAD_PATH);
     model.compile({
         optimizer: tf.train.adam(learningRate),
         loss: 'categoricalCrossentropy',
@@ -234,11 +233,7 @@ if (CurrentMode === MODE.Save) {
     await trainAll();
     await model.save(SAVE_PATH);
 } else {
-    // const file_path = SAVE_PATH + '/model.json';
-    // console.log(file_path);
-    model = await tf.loadLayersModel(
-        'file:///Users/pavel/Projects/NodeJSApps/ml/tests/some/model/model.json'
-    );
+    model = await tf.loadLayersModel(LOAD_PATH);
 }
 
 while (true) {

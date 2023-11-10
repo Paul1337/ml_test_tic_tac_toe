@@ -1,17 +1,15 @@
 import tf from '@tensorflow/tfjs-node';
-import { printBoard, winingLines } from './lib.js';
-import readline from 'readline';
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-});
+import { getWinner, getAvailableActions, isBoardFull, printBoard } from './lib.js';
+import { promptUser } from './rl.js';
+import { cwd } from 'process';
+import path from 'path';
 
 // const boardSize = 3; // Размер игрового поля
 const numStates = 9; // Количество состояний в игровом поле (3x3)
 const numActions = 9; // Количество возможных ходов
 const initialState = Array(numStates).fill(0); // Начальное состояние среды
 
-const model = tf.sequential();
+let model = tf.sequential();
 model.add(tf.layers.dense({ units: 24, activation: 'relu', inputShape: [numStates] }));
 model.add(tf.layers.dense({ units: 24, activation: 'relu' }));
 model.add(tf.layers.dense({ units: numActions, activation: 'softmax' }));
@@ -63,35 +61,42 @@ class ReplayBuffer {
 
 const replayBuffer = new ReplayBuffer(replayBufferCapacity);
 
+function selectRandomAction(state) {
+    const availableActions = getAvailableActions(state);
+    return availableActions[Math.floor(Math.random() * availableActions.length)];
+}
+
 // Определите функцию выбора действия
 function selectAction(state, epsilon) {
     if (Math.random() < epsilon) {
-        const availableActions = getAvailableActions(state);
-        return availableActions[Math.floor(Math.random() * availableActions.length)];
+        return selectRandomAction(state);
     } else {
         const qValues = model.predict(tf.tensor([state]));
         const probabilities = qValues.dataSync();
         const availableActions = getAvailableActions(state);
-        const filteredProbabilities = availableActions.map(action => probabilities[action]);
+        const filteredProbabilities = availableActions.map((action) => probabilities[action]);
         const actionIndex = filteredProbabilities.indexOf(Math.max(...filteredProbabilities));
         return availableActions[actionIndex];
     }
 }
 
-function updateReplayBufferAndTrain() {
+async function updateReplayBufferAndTrain() {
+    // console.log('training episode start');
+
     let state = [...initialState];
     // const availableActions = getAvailableActions(state);
     let totalReward = 0;
     let done = false;
 
     while (!done) {
+        // console.log(state);
         const action = selectAction(state, getEpsilon());
         const nextState = [...state];
         nextState[action] = 1;
         const reward = getReward(nextState);
+        // console.log('reward', reward);
 
-        // Проверьте, является ли следующее состояние конечным состоянием
-        done = doesWin(nextState) || isBoardFull(nextState);
+        done = getWinner(nextState) !== 0 || isBoardFull(nextState);
 
         replayBuffer.add({
             state: state,
@@ -101,25 +106,32 @@ function updateReplayBufferAndTrain() {
             done: done,
         });
 
+        const randomAction = selectRandomAction(nextState);
+        nextState[randomAction] = -1;
+
         state = nextState;
         totalReward += reward;
+        // console.log('total', totalReward);
 
         // Обучите модель с использованием экспериенс реплей буфера
         if (replayBuffer.size() >= batchSize) {
-            trainModel();
+            await trainModel();
         }
+
+        // console.log('board state:');
+        // printBoard(state);
     }
 
     return totalReward;
 }
 
 // Функция обучения модели
-function trainModel() {
+async function trainModel() {
     const batch = replayBuffer.sample(batchSize);
     const states = [];
     const targets = [];
 
-    batch.forEach(sample => {
+    batch.forEach((sample) => {
         const { state, action, reward, nextState, done } = sample;
         const target = [...state];
         target[action] = reward + (done ? 0 : discountFactor * getMaxQValue(nextState));
@@ -127,28 +139,16 @@ function trainModel() {
         targets.push(target);
     });
 
-    model.fit(tf.tensor2d(states), tf.tensor2d(targets), { epochs: 1, verbose: 0 });
+    await model.fit(tf.tensor2d(states), tf.tensor2d(targets), { epochs: 1, verbose: 0 });
+    // console.log('retrained');
 }
 
 // Функция получения наилучшего Q-значения для следующего состояния
 function getMaxQValue(state) {
     const qValues = model.predict(tf.tensor([state])).dataSync();
     const availableActions = getAvailableActions(state);
-    const filteredQValues = availableActions.map(action => qValues[action]);
+    const filteredQValues = availableActions.map((action) => qValues[action]);
     return Math.max(...filteredQValues);
-}
-
-// Функция получения доступных действий для данного состояния
-function getAvailableActions(state) {
-    const actions = [];
-
-    for (let i = 0; i < numActions; i++) {
-        if (state[i] === 0) {
-            actions.push(i);
-        }
-    }
-
-    return actions;
 }
 
 // Функция получения эпсилон для эпсилон-жадной стратегии
@@ -158,82 +158,89 @@ function getEpsilon() {
 }
 
 function getReward(state) {
-    if (doesWin(state)) {
+    const winner = getWinner(state);
+    if (winner === 1) {
         return 1;
+    } else if (winner === -1) {
+        return -1;
     } else if (isBoardFull(state)) {
-        return 0;
+        return -0.2;
     } else {
-        return -0.1;
+        return 0;
     }
-}
-
-function isBoardFull(state) {
-    for (let i = 0; i < numStates; i++) {
-        if (state[i] === 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-function doesWin(state) {
-    for (const [a, b, c] of winingLines) {
-        if (state[a] !== 0 && state[a] === state[b] && state[a] === state[c]) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-async function promptUser() {
-    return new Promise((resolve, reject) => {
-        rl.question('Введите номер ячейки (от 0 до 8): ', answer => {
-            resolve(Number(answer));
-        });
-    });
 }
 
 async function playWithHuman() {
-    let state = initialState;
+    console.log('Game starts!');
+
+    let state = [...initialState];
     let player = 1; // Игрок 1 начинает игру
     let done = false;
 
     while (!done) {
         if (player === 1) {
-            const action = selectAction(state, getEpsilon());
+            const action = selectAction(state, 0);
             state[action] = 1; // Заполните ячейку крестиком
             console.log(`Player 1 move: ${action}`);
         } else {
             console.log('Enter the position (0-8):');
-            printBoard(state);
-            userInput = await promptUser();
+            const userInput = await promptUser();
             state[userInput] = -1; // Заполните ячейку ноликом
         }
 
-        // Проверьте, есть ли выигрышная комбинация или заполнена ли доска
-        done = doesWin(state) || isBoardFull(state);
-
-        // Поменяйте очередь игрока
+        printBoard(state);
+        done = getWinner(state) !== 0 || isBoardFull(state);
         player = -player;
     }
 
     // Выведите результат игры
-    if (doesWin(state)) {
-        console.log('Player', player, 'wins!');
+    const winner = getWinner(state);
+    if (winner !== 0) {
+        console.log('Player', winner, 'wins!');
     } else {
         console.log('Draw!');
     }
 }
 
-const numEpisodes = 100;
 let totalSteps = 0;
-for (let episode = 0; episode < numEpisodes; episode++) {
-    const totalReward = updateReplayBufferAndTrain();
-    totalSteps += replayBuffer.size();
-    console.log(`Episode ${episode + 1}: Total Reward = ${totalReward}`);
+const MODE = {
+    Save: 0,
+    LoadFromFile: 1,
+};
+const CurrentMode = MODE.Save;
+console.log(cwd());
+const SAVE_PATH = `file://${cwd()}/model`;
+
+async function trainAll() {
+    const numEpisodes = 2000;
+    for (let episode = 0; episode < numEpisodes; episode++) {
+        const totalReward = await updateReplayBufferAndTrain();
+        totalSteps += replayBuffer.size();
+        if ((episode + 1) % 10 === 0) {
+            console.log(`Episode ${episode + 1}: Total Reward = ${totalReward}`);
+        }
+    }
 }
 
-await playWithHuman();
+if (CurrentMode === MODE.Save) {
+    model = await tf.loadLayersModel(
+        'file:///Users/pavel/Projects/NodeJSApps/ml/tests/some/model/model.json'
+    );
+    model.compile({
+        optimizer: tf.train.adam(learningRate),
+        loss: 'categoricalCrossentropy',
+    });
 
-rl.close();
+    await trainAll();
+    await model.save(SAVE_PATH);
+} else {
+    // const file_path = SAVE_PATH + '/model.json';
+    // console.log(file_path);
+    model = await tf.loadLayersModel(
+        'file:///Users/pavel/Projects/NodeJSApps/ml/tests/some/model/model.json'
+    );
+}
+
+while (true) {
+    await playWithHuman();
+}

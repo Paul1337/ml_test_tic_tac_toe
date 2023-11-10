@@ -10,7 +10,6 @@ export const config = {
     },
     numStates: 9,
     numActions: 9,
-
     learningRate: 0.001,
     discountFactor: 0.99,
     epsilonInitial: 1.0,
@@ -20,4 +19,4 @@ export const config = {
     batchSize: 32,
 };
 
-config.initialState = Array(config.numStates).fill(0);
+config.initialState = new Array(config.numStates).fill(0);

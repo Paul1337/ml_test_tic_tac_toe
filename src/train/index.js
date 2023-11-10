@@ -1,5 +1,5 @@
 import tf from '@tensorflow/tfjs-node';
-import { getWinner, isBoardFull } from '../lib.js';
+import { getWinner, isBoardFull, printBoard } from '../lib.js';
 import { ReplayBuffer } from './replayBuffer.js';
 import fs from 'fs';
 import { config } from '../config.js';
@@ -13,6 +13,10 @@ const updateReplayBufferAndTrain = async () => {
 
     while (!done) {
         const action = bot.selectMove(state, getEpsilon());
+        if (action !== 0 && !action) {
+            console.log('Action', action);
+            throw new Error('Action is not valid!');
+        }
         const nextState = [...state];
         nextState[action] = 1;
         const reward = getReward(nextState);
@@ -57,10 +61,10 @@ const trainModel = async () => {
     await model.fit(tf.tensor2d(states), tf.tensor2d(targets), { epochs: 1, verbose: 0 });
 };
 
-const getMaxQValue = async state => {
+const getMaxQValue = state => {
     const qValues = model.predict(tf.tensor([state])).dataSync();
-    const availableActions = bot.getAvailableMoves(state);
-    const filteredQValues = availableActions.map(action => qValues[action]);
+    const availableMoves = bot.getAvailableMoves(state);
+    const filteredQValues = availableMoves.map(action => qValues[action]);
     return Math.max(...filteredQValues);
 };
 
@@ -111,7 +115,7 @@ const main = async () => {
     bot = new Bot(model);
 
     await trainAll();
-    await model.save(config.modelLocation.savePath);
+    // await model.save(config.modelLocation.savePath);
 };
 
 main();

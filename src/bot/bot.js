@@ -6,6 +6,7 @@ export class Bot {
     }
 
     selectMove(state, epsilon) {
+        // console.log(`Selecting move, epsilon: ${epsilon}`);
         if (Math.random() < epsilon) {
             return this.getRandomMove(state);
         } else {
